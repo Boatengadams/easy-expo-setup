@@ -1,0 +1,22 @@
+# Generated verification projects
+try/*
+!try/.gitkeep
+
+# Node and Expo output
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Generated backups
+*.backup
+*.original
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor files
+.vscode/
+.idea/
