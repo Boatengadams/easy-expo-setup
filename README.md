@@ -13,18 +13,32 @@ You need Node.js installed first. Download it from [nodejs.org](https://nodejs.o
 ## Windows
 
 1. Double-click `setup.bat`.
+2. If that does not work, right-click the folder, choose **Open in Terminal**,
+   and run `node setup-project.js`.
 
 ## macOS
 
 1. Double-click `setup.command`.
 2. If nothing happens, right-click it and choose **Open**, then click **Open**
    again in the popup. If needed, run `chmod +x setup.command` once in Terminal.
+3. If double-clicking still does not work, open Terminal in this folder and run
+   `bash setup.command`.
 
 ## Linux
 
 1. Double-click `setup.sh`.
 2. If that does not work, right-click the folder, choose **Open in Terminal**,
    and type `bash setup.sh`.
+
+If any launcher is incompatible with your system, you can always open a
+terminal in this folder and run the JavaScript setup directly:
+
+```bash
+node setup-project.js
+```
+
+The script will ask you to name your app. You can also provide the name
+directly, for example `node setup-project.js MyProjectName`.
 
 ## Command-line option
 
