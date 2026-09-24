@@ -61,10 +61,6 @@ To open the app in a browser, run:
 npm run web
 ```
 
-## Author
-
-Created by [Boateng Adams](https://www.linkedin.com/in/adamsboateng/).
-
 Setup can take a few minutes. Keep the window open until you see `ALL DONE!`.
 
 The script confirms that setup finished correctly. It does not guarantee that
