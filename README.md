@@ -10,53 +10,6 @@ Expo/React Native app with NativeWind, tabs, Expo Router, and web support.
 You need Node.js installed first. Download it from [nodejs.org](https://nodejs.org)
 (choose the LTS version) and use the installer with the default options.
 
-## Clone directly onto a pendrive (USB drive)
-
-The setup tool can be downloaded and cloned directly onto a pendrive. Make sure Git and Node.js are installed, then insert the pendrive and open a terminal.
-
-### Windows
-
-Open Command Prompt or PowerShell and use the drive letter for your pendrive (for example, `E:`):
-
-```bat
-cd /d E:\
-git clone https://github.com/Boatengadams/easy-expo-setup.git
-cd easy-expo-setup
-node setup-project.js MyProjectName
-```
-
-### macOS
-
-Find the pendrive name in **Finder**, then use its mounted path. The example below uses `USB`:
-
-```bash
-cd /Volumes/USB
-git clone https://github.com/Boatengadams/easy-expo-setup.git
-cd easy-expo-setup
-node setup-project.js MyProjectName
-```
-
-### Linux
-
-Mount the pendrive, then change to its mount point. The example below uses `/media/your-name/USB`:
-
-```bash
-cd /media/your-name/USB
-git clone https://github.com/Boatengadams/easy-expo-setup.git
-cd easy-expo-setup
-node setup-project.js MyProjectName
-```
-
-The setup script creates the new project in the cloned `easy-expo-setup` folder, so make sure the pendrive has enough free space. Replace `MyProjectName` with the name you want for your app. After setup finishes:
-
-```bash
-cd MyProjectName
-npm run start
-```
-
-You can also run `npm run web` to open the app in a browser. If you prefer the graphical launchers, use `setup.bat` on Windows, `setup.command` on macOS, or `setup.sh` on Linux after cloning.
-
-
 ## Windows
 
 1. Double-click `setup.bat`.
