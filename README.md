@@ -62,6 +62,11 @@ npm run web
 ```
 
 Setup can take a few minutes. Keep the window open until you see `ALL DONE!`.
+## Author
+
+Created by [Boateng Adams](https://www.linkedin.com/in/adamsboateng/).
+
+
 
 The script confirms that setup finished correctly. It does not guarantee that
 the generated app builds or runs perfectly.
