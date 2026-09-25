@@ -60,6 +60,28 @@ Use `--no-start` when you only want to create and configure the app without laun
 node setup-project.js MyProjectName --no-start
 ```
 
+## Resume an interrupted setup
+
+Setup checkpoints each completed step. If your computer stops, the network drops, or a command is interrupted, run the same command again:
+
+```bash
+node setup-project.js MyProjectName --resume
+```
+
+The setup state is stored outside the project at:
+
+```text
+~/Desktop/projects/.easy-expo-setup/MyProjectName.json
+```
+
+Completed steps are skipped safely. To inspect the saved progress:
+
+```bash
+node setup-project.js MyProjectName --status
+```
+
+If the project folder already exists without a saved state, the tool stops instead of overwriting it.
+
 ## Command-line option
 
 If you prefer to use a terminal, open this folder and run:

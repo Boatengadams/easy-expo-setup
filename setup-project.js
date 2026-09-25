@@ -10,7 +10,10 @@ const readline = require("readline");
 const warnings = [];
 const projectsRoot = path.join(process.env.HOME || process.cwd(), "Desktop", "projects");
 const noStart = process.argv.includes("--no-start");
+const resumeRequested = process.argv.includes("--resume") || process.argv.includes("--continue");
+const statusRequested = process.argv.includes("--status");
 const helpRequested = process.argv.includes("--help") || process.argv.includes("-h");
+const setupStateRoot = path.join(projectsRoot, ".easy-expo-setup");
 
 const NATIVEWIND_LINE = '/// <reference types="nativewind/types" />';
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -20,7 +23,7 @@ class SetupError extends Error {
 }
 
 function usage() {
-  console.error("\nUsage:\n  node setup-project.js <project-name> [--no-start]\n\nExample:\n  node setup-project.js MyApp");
+  console.error("\nUsage:\n  node setup-project.js <project-name> [--no-start] [--resume] [--status]\n\nExamples:\n  node setup-project.js MyApp\n  node setup-project.js MyApp --resume\n  node setup-project.js MyApp --status");
 }
 
 function banner(number, title) {
@@ -100,16 +103,54 @@ function checkDependencies() {
   }
 }
 
-function guardExistingDir(name) {
+function stateFile(name) {
+  return path.join(setupStateRoot, `${name}.json`);
+}
+
+function readState(name) {
+  const file = stateFile(name);
+  if (!fs.existsSync(file)) return null;
+  try {
+    const state = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!state || state.name !== name || !Array.isArray(state.completed)) throw new Error("invalid state");
+    return state;
+  } catch (error) {
+    warnings.push(`The saved setup state could not be read: ${error.message}`);
+    return null;
+  }
+}
+
+function saveState(name, type, completed, currentStep) {
+  fs.mkdirSync(setupStateRoot, { recursive: true });
+  fs.writeFileSync(stateFile(name), `${JSON.stringify({ name, type, completed, currentStep, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
+}
+
+function completed(state, step) {
+  if (step === "verify-scaffold") return false;
+  return Boolean(state && state.completed.includes(step));
+}
+
+function runStep(state, step, action) {
+  if (completed(state, step)) {
+    console.log(`\n↷ Skipping completed step: ${step}`);
+    return;
+  }
+  saveState(state.name, state.type, state.completed, step);
+  action();
+  state.completed.push(step);
+  saveState(state.name, state.type, state.completed, step);
+}
+
+function guardExistingDir(name, state) {
   const target = path.join(projectsRoot, name);
-  if (fs.existsSync(target)) throw new SetupError(`A folder named "${name}" already exists in ${projectsRoot}.\n\nChoose a different project name, or move/rename the existing folder, then try again.`, 3);
+  if (fs.existsSync(target) && !state) throw new SetupError(`A folder named "${name}" already exists in ${projectsRoot}.\n\nUse --resume if this is an interrupted setup, or choose a different project name.`, 3);
 }
 
 function scaffoldProject(name) {
   banner(1, "Creating your app");
   fs.mkdirSync(projectsRoot, { recursive: true });
   process.chdir(projectsRoot);
-  command("npx", ["rn-new@latest", name, "--expo-router", "--nativewind", "--tabs", "--npm", "--noGit"], "Creating your app");
+  if (!fs.existsSync(name)) command("npx", ["rn-new@latest", name, "--expo-router", "--nativewind", "--tabs", "--npm", "--noGit"], "Creating your app");
 }
 
 function verifyScaffold(name) {
@@ -328,23 +369,31 @@ async function main() {
       process.exitCode = 1;
       return;
     }
-    currentStep = "Choosing the app type"; projectType = await promptForType();
-    currentStep = "Checking required software"; checkDependencies();
-    currentStep = "Checking for an existing folder"; guardExistingDir(projectName);
-    currentStep = "Creating your app"; scaffoldProject(projectName);
-    currentStep = "Checking your new app"; verifyScaffold(projectName);
-    currentStep = "Installing the latest Expo pieces"; syncExpoDeps();
-    currentStep = "Installing authentication features"; installFeatureDependencies(projectType);
-    currentStep = "Adding NativeWind TypeScript support"; writeNativeWindTypes();
-    currentStep = "Updating your TypeScript settings"; patchTsconfig();
-    currentStep = "Creating clean routes"; createCleanRoutes(projectName);
-    if (projectType === "auth") {
-      currentStep = "Creating authentication screens";
-      createAuthScreens(projectName);
+    let state = readState(projectName);
+    if (statusRequested) {
+      if (!state) { console.log(`No saved setup found for ${projectName}.`); return; }
+      console.log(JSON.stringify(state, null, 2));
+      return;
     }
-    currentStep = "Enabling web support"; enableWebSupport();
-    currentStep = "Verifying the setup"; finalVerify(projectName, projectType);
-    currentStep = "Starting your app"; launchProject();
+    if (resumeRequested && !state) throw new SetupError(`No saved setup was found for "${projectName}". Start a new setup without --resume.`, 1);
+    currentStep = "Choosing the app type";
+    projectType = state ? state.type : await promptForType();
+    if (state) console.log(`\n↷ Resuming ${projectName} from step: ${state.currentStep || "the beginning"}.`);
+    state = state || { name: projectName, type: projectType, completed: [] };
+    process.chdir(projectsRoot);
+    currentStep = "Checking required software"; checkDependencies();
+    currentStep = "Checking for an existing folder"; guardExistingDir(projectName, state);
+    runStep(state, "scaffold", () => scaffoldProject(projectName));
+    runStep(state, "verify-scaffold", () => verifyScaffold(projectName));
+    runStep(state, "expo-dependencies", () => syncExpoDeps());
+    runStep(state, "feature-dependencies", () => installFeatureDependencies(projectType));
+    runStep(state, "nativewind-types", () => writeNativeWindTypes());
+    runStep(state, "typescript", () => patchTsconfig());
+    runStep(state, "clean-routes", () => createCleanRoutes(projectName));
+    if (projectType === "auth") runStep(state, "auth-screens", () => createAuthScreens(projectName));
+    runStep(state, "web-support", () => enableWebSupport());
+    runStep(state, "verify", () => finalVerify(projectName, projectType));
+    runStep(state, "start", () => launchProject());
     let summary = `\n✅ ALL DONE!\n\nYour app "${projectName}" is ready.\n\nProject folder:\n  ${path.join(projectsRoot, projectName)}\n\nTo start it later:\n  cd ${path.join(projectsRoot, projectName)}\n  npm run start\n\nTo open it in your browser:\n  cd ${path.join(projectsRoot, projectName)}\n  npm run web`;
     if (warnings.length) summary += `\n\nNotes:\n${warnings.map((warning) => `⚠️  ${warning}`).join("\n")}`;
     console.log(summary);
