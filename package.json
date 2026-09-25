@@ -1,0 +1,19 @@
+{
+  "name": "easy-expo-setup",
+  "version": "2.0.0",
+  "description": "Create a clean, configured Expo project with one guided command.",
+  "bin": {
+    "easy-expo-setup": "./setup-project.js"
+  },
+  "scripts": {
+    "setup": "node setup-project.js"
+  },
+  "keywords": [
+    "expo",
+    "react-native",
+    "generator",
+    "scaffold"
+  ],
+  "license": "MIT",
+  "private": false
+}

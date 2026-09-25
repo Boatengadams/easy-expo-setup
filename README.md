@@ -23,7 +23,28 @@ After cloning, run the launcher for your operating system or use the JavaScript 
 node setup-project.js
 ```
 
-The project will ask for an app name and app type, create the new app in your Desktop `projects` folder, and start Expo automatically.
+## Install globally from GitHub
+
+Install the setup command once so it can run from any directory:
+
+```bash
+npm install -g github:Boatengadams/easy-expo-setup
+```
+
+Then start a new project from anywhere:
+
+```bash
+easy-expo-setup
+```
+
+You can also pass a project name directly:
+
+```bash
+easy-expo-setup MyApp
+```
+
+The command creates new apps in your Desktop `projects` folder, regardless of your current working directory.
+
 
 ## Windows
 
@@ -65,7 +86,7 @@ node setup-project.js MyProjectName --no-start
 Setup checkpoints each completed step. If your computer stops, the network drops, or a command is interrupted, run the same command again:
 
 ```bash
-node setup-project.js MyProjectName --resume
+easy-expo-setup MyProjectName --resume
 ```
 
 The setup state is stored outside the project at:
@@ -77,7 +98,7 @@ The setup state is stored outside the project at:
 Completed steps are skipped safely. To inspect the saved progress:
 
 ```bash
-node setup-project.js MyProjectName --status
+easy-expo-setup MyProjectName --status
 ```
 
 If the project folder already exists without a saved state, the tool stops instead of overwriting it.
@@ -87,7 +108,7 @@ If the project folder already exists without a saved state, the tool stops inste
 If you prefer to use a terminal, open this folder and run:
 
 ```bash
-node setup-project.js MyProjectName
+easy-expo-setup MyProjectName
 ```
 
 Replace `MyProjectName` with the name you want for your app. After setup finishes:
