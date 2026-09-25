@@ -1,0 +1,11 @@
+{
+  "name": "presentation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.8.70 preview",
+    "check": "npx --yes hyperframes@0.8.70 check",
+    "render": "npx --yes hyperframes@0.8.70 render",
+    "publish": "npx --yes hyperframes@0.8.70 publish"
+  }
+}
