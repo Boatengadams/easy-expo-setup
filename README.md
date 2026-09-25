@@ -10,6 +10,21 @@ Expo/React Native app with NativeWind, tabs, Expo Router, and web support.
 You need Node.js installed first. Download it from [nodejs.org](https://nodejs.org)
 (choose the LTS version) and use the installer with the default options.
 
+## Clone this project
+
+```bash
+git clone https://github.com/Boatengadams/easy-expo-setup.git
+cd easy-expo-setup
+```
+
+After cloning, run the launcher for your operating system or use the JavaScript setup directly:
+
+```bash
+node setup-project.js
+```
+
+The project will ask for an app name and app type, create the new app in your Desktop `projects` folder, and start Expo automatically.
+
 ## Windows
 
 1. Double-click `setup.bat`.
@@ -37,8 +52,13 @@ terminal in this folder and run the JavaScript setup directly:
 node setup-project.js
 ```
 
-The script will ask you to name your app. You can also provide the name
-directly, for example `node setup-project.js MyProjectName`.
+After setup, the script asks for the project name and app type. The default is a clean starter app with no authentication. Choose option `2` to add Formik-powered login and signup screens. It creates the project in your Desktop `projects` folder and starts Expo automatically when setup is complete.
+
+Use `--no-start` when you only want to create and configure the app without launching it:
+
+```bash
+node setup-project.js MyProjectName --no-start
+```
 
 ## Command-line option
 

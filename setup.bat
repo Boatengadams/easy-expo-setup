@@ -1,3 +1,3 @@
 @echo off
-node "%~dp0setup-project.js"
+node "%~dp0setup-project.js" %*
 pause

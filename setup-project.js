@@ -7,21 +7,25 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const readline = require("readline");
 
+const warnings = [];
+const projectsRoot = path.join(process.env.HOME || process.cwd(), "Desktop", "projects");
+const noStart = process.argv.includes("--no-start");
+const helpRequested = process.argv.includes("--help") || process.argv.includes("-h");
+
 const NATIVEWIND_LINE = '/// <reference types="nativewind/types" />';
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const warnings = [];
 
 class SetupError extends Error {
   constructor(message, code = 4) { super(message); this.code = code; }
 }
 
 function usage() {
-  console.error("\nUsage:\n  node setup-project.js <project-name>\n\nExample:\n  node setup-project.js Bagsgraphics");
+  console.error("\nUsage:\n  node setup-project.js <project-name> [--no-start]\n\nExample:\n  node setup-project.js MyApp");
 }
 
 function banner(number, title) {
   console.log("\n==================================================");
-  console.log(`STEP ${number}/7 - ${title}`);
+  console.log(`STEP ${number}/8 - ${title}`);
   console.log("==================================================");
 }
 
@@ -32,7 +36,11 @@ function validateName(name) {
 }
 
 async function promptForName() {
-  let name = process.argv[2];
+  if (helpRequested) {
+    usage();
+    return null;
+  }
+  let name = process.argv.slice(2).find((argument) => !argument.startsWith("--"));
   if (name !== undefined) {
     const error = validateName(name);
     if (error) { console.error(`❌ ${error}`); usage(); return null; }
@@ -60,6 +68,23 @@ async function promptForName() {
   }
 }
 
+async function promptForType() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const lines = rl[Symbol.asyncIterator]();
+    console.log("\nWhat type of app are you creating?");
+    console.log("1. Starter app");
+    console.log("2. Authentication app");
+    rl.setPrompt("Choose [1]: ");
+    rl.prompt();
+    const answer = ((await lines.next()).value || "1").trim();
+    if (answer !== "1" && answer !== "2") throw new SetupError("Choose 1 for a starter app or 2 for an authentication app.", 1);
+    return answer === "1" ? "starter" : "auth";
+  } finally {
+    rl.close();
+  }
+}
+
 function command(cmd, args, description) {
   const result = spawnSync(cmd, args, { stdio: "inherit", shell: process.platform === "win32" });
   if (result.error) throw new SetupError(`${description} could not start: ${result.error.message}`);
@@ -76,11 +101,14 @@ function checkDependencies() {
 }
 
 function guardExistingDir(name) {
-  if (fs.existsSync(name)) throw new SetupError(`A folder named "${name}" already exists here.\n\nChoose a different project name, or move/rename the existing folder, then try again.`, 3);
+  const target = path.join(projectsRoot, name);
+  if (fs.existsSync(target)) throw new SetupError(`A folder named "${name}" already exists in ${projectsRoot}.\n\nChoose a different project name, or move/rename the existing folder, then try again.`, 3);
 }
 
 function scaffoldProject(name) {
   banner(1, "Creating your app");
+  fs.mkdirSync(projectsRoot, { recursive: true });
+  process.chdir(projectsRoot);
   command("npx", ["rn-new@latest", name, "--expo-router", "--nativewind", "--tabs", "--npm", "--noGit"], "Creating your app");
 }
 
@@ -97,37 +125,89 @@ function syncExpoDeps() {
   command("npx", ["expo", "install", "expo@latest", "--fix", "--", "--yes"], "Installing Expo");
 }
 
+function installFeatureDependencies(type) {
+  if (type !== "auth") return;
+  banner(4, "Installing authentication features");
+  command("npx", ["expo", "install", "formik", "expo-constants"], "Installing Formik and Expo Constants");
+}
+
+function writeFile(file, content) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, content, "utf8");
+}
+
+function createAuthScreens(projectName) {
+  banner(6, "Creating authentication screens");
+  const authLayout = `import { Stack } from 'expo-router';\n\nexport default function AuthLayout() {\n  return <Stack screenOptions={{ headerShown: false }} />;\n}\n`;
+  const login = `import { Formik, FormikHelpers } from 'formik';
+import { Link, useRouter } from 'expo-router';
+import { Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Constants from 'expo-constants';
+
+type LoginValues = { email: string; password: string };
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const initialValues: LoginValues = { email: '', password: '' };
+  const validate = (values: LoginValues) => {
+    const errors: Partial<LoginValues> = {};
+    if (!values.email) errors.email = 'Email is required';
+    else if (!/^\\S+@\\S+\\.\\S+$/.test(values.email)) errors.email = 'Enter a valid email';
+    if (!values.password) errors.password = 'Password is required';
+    return errors;
+  };
+  const submit = (_values: LoginValues, helpers: FormikHelpers<LoginValues>) => {
+    helpers.setSubmitting(false);
+    router.replace('/');
+  };
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Welcome to ${projectName}</Text>
+        <Text style={styles.subtitle}>Sign in to continue</Text>
+        <Formik initialValues={initialValues} validate={validate} onSubmit={submit}>
+          {({ handleChange, handleBlur, handleSubmit, isSubmitting, errors, touched }) => (
+            <View>
+              <TextInput placeholder="Email" autoCapitalize="none" keyboardType="email-address" style={styles.input} onChangeText={handleChange('email')} onBlur={handleBlur('email')} />
+              {touched.email && errors.email ? <Text style={styles.error}>{errors.email}</Text> : null}
+              <TextInput placeholder="Password" secureTextEntry style={styles.input} onChangeText={handleChange('password')} onBlur={handleBlur('password')} />
+              {touched.password && errors.password ? <Text style={styles.error}>{errors.password}</Text> : null}
+              <Pressable style={styles.button} disabled={isSubmitting} onPress={handleSubmit}><Text style={styles.buttonText}>{isSubmitting ? 'Signing in…' : 'Sign in'}</Text></Pressable>
+            </View>
+          )}
+        </Formik>
+        <Link href="/(auth)/signup" asChild><Pressable><Text style={styles.link}>Create an account</Text></Pressable></Link>
+        <Text style={styles.version}>v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({ container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#f5f7fb' }, card: { gap: 12, backgroundColor: 'white', borderRadius: 20, padding: 24 }, title: { fontSize: 28, fontWeight: '700', textAlign: 'center' }, subtitle: { color: '#64748b', textAlign: 'center', marginBottom: 12 }, input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 14, marginBottom: 6 }, error: { color: '#dc2626', fontSize: 12, marginBottom: 4 }, button: { backgroundColor: '#2563eb', borderRadius: 10, padding: 15, alignItems: 'center', marginTop: 8 }, buttonText: { color: 'white', fontWeight: '700', fontSize: 16 }, link: { color: '#2563eb', textAlign: 'center', padding: 12 }, version: { color: '#94a3b8', textAlign: 'center', fontSize: 12 } });
+`;
+  const signup = login.replaceAll(`Welcome to ${projectName}`, 'Create your account').replace('Sign in to continue', 'Start building today').replace('Sign in', 'Create account').replace('Creating an account', 'Already have an account? Sign in').replace('href="/(auth)/signup"', 'href="/(auth)/login"');
+  writeFile(path.join('app', '(auth)', '_layout.tsx'), authLayout);
+  writeFile(path.join('app', '(auth)', 'login.tsx'), login);
+  writeFile(path.join('app', '(auth)', 'signup.tsx'), signup);
+}
+
+function createCleanRoutes(projectName) {
+  const tabs = path.join('app', '(tabs)');
+  if (fs.existsSync(tabs)) fs.rmSync(tabs, { recursive: true, force: true });
+  const home = `import { SafeAreaView, StyleSheet, Text, View } from 'react-native';\n\nexport default function HomeScreen() {\n  return (\n    <SafeAreaView style={styles.container}>\n      <View style={styles.content}>\n        <Text style={styles.title}>${projectName}</Text>\n        <Text style={styles.subtitle}>Your app is ready. Start building your feature here.</Text>\n      </View>\n    </SafeAreaView>\n  );\n}\n\nconst styles = StyleSheet.create({ container: { flex: 1, backgroundColor: '#f5f7fb' }, content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }, title: { fontSize: 30, fontWeight: '700', marginBottom: 10 }, subtitle: { color: '#64748b', textAlign: 'center' } });\n`;
+  const rootLayout = `import '../global.css';\nimport { SafeAreaProvider } from 'react-native-safe-area-context';\nimport { Stack } from 'expo-router';\n\nexport default function RootLayout() {\n  return <SafeAreaProvider><Stack screenOptions={{ headerShown: false }}><Stack.Screen name="index" /><Stack.Screen name="(auth)" /><Stack.Screen name="modal" options={{ presentation: 'modal' }} /></Stack></SafeAreaProvider>;\n}\n`;
+  writeFile(path.join('app', 'index.tsx'), home);
+  writeFile(path.join('app', '_layout.tsx'), rootLayout);
+}
+
 function writeNativeWindTypes() {
-  banner(4, "Adding NativeWind TypeScript support");
-  fs.mkdirSync("src", { recursive: true });
-  const file = path.join("src", "nativewind-env.d.ts");
-  const content = `${NATIVEWIND_LINE}\n`;
-  if (!fs.existsSync(file) || fs.readFileSync(file, "utf8") !== content) fs.writeFileSync(file, content, "utf8");
+  banner(5, "Adding NativeWind TypeScript support");
+  fs.mkdirSync('src', { recursive: true });
+  writeFile(path.join('src', 'nativewind-env.d.ts'), `${NATIVEWIND_LINE}\n`);
 }
 
 function findHomeScreen() {
-  const candidates = [
-    path.join("app", "(tabs)", "index.tsx"),
-    path.join("app", "(tabs)", "index.js"),
-    path.join("app", "index.tsx"),
-    path.join("app", "index.js"),
-  ];
-  for (const file of candidates) if (fs.existsSync(file)) return file;
-
-  function search(directory) {
-    if (!fs.existsSync(directory)) return null;
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const file = path.join(directory, entry.name);
-      if (entry.isDirectory()) {
-        const match = search(file);
-        if (match) return match;
-      } else if (/\.tsx?$|\.js$/.test(entry.name)) {
-        if (fs.readFileSync(file, "utf8").includes("export default function")) return file;
-      }
-    }
-    return null;
-  }
-  return search("app");
+  return path.join("app", "index.tsx");
 }
 
 function personalizeHome(projectName) {
@@ -208,8 +288,20 @@ function patchTsconfig() {
   fs.unlinkSync(backup);
 }
 
-function finalVerify(name) {
+function launchProject() {
+  if (noStart) return;
+  banner(8, "Starting your app");
+  command("npm", ["start"], "Starting Expo");
+}
+
+function finalVerify(name, type) {
+  const projectPath = path.resolve(process.cwd());
+  if (projectPath !== path.join(projectsRoot, name)) throw new SetupError(`The project was created outside the expected folder: ${projectPath}`);
   if (!fs.existsSync("package.json")) throw new SetupError("package.json could not be verified.");
+  if (type === "auth" && (!fs.existsSync(path.join("app", "(auth)", "login.tsx")) || !fs.existsSync(path.join("app", "(auth)", "signup.tsx")))) throw new SetupError("Authentication screens could not be verified.");
+  if (type !== "auth" && fs.existsSync(path.join("app", "(auth)"))) throw new SetupError("Starter app should not contain authentication routes.");
+  if (fs.existsSync(path.join("app", "(tabs)"))) throw new SetupError("Duplicate tab routes could not be removed.");
+  if (!fs.existsSync(path.join("app", "index.tsx")) || !fs.existsSync(path.join("app", "_layout.tsx"))) throw new SetupError("Home routes could not be verified.");
   const nativewind = path.join("src", "nativewind-env.d.ts");
   if (!fs.existsSync(nativewind) || fs.readFileSync(nativewind, "utf8") !== `${NATIVEWIND_LINE}\n`) throw new SetupError("The NativeWind TypeScript file could not be verified.");
   let config;
@@ -217,9 +309,10 @@ function finalVerify(name) {
   catch (error) { throw new SetupError(`tsconfig.json could not be verified: ${error.message}`); }
   if (!Array.isArray(config.include) || !config.include.includes("src/nativewind-env.d.ts")) throw new SetupError("The NativeWind entry in tsconfig.json could not be verified.");
   if (!fs.existsSync("node_modules") || !fs.statSync("node_modules").isDirectory()) throw new SetupError("node_modules could not be verified.");
-  if (!fs.existsSync(".") || !fs.statSync(".").isDirectory()) throw new SetupError(`The project folder could not be verified: ${name}`);
   const packageConfig = JSON.parse(fs.readFileSync("package.json", "utf8"));
-  for (const dependency of ["react-native-web", "react-dom"]) {
+  const dependencies = ["react-native-web", "react-dom"];
+  if (type === "auth") dependencies.push("formik", "expo-constants");
+  for (const dependency of dependencies) {
     if (!packageConfig.dependencies || !packageConfig.dependencies[dependency]) throw new SetupError(`${dependency} could not be verified in package.json dependencies.`);
   }
 }
@@ -227,20 +320,32 @@ function finalVerify(name) {
 async function main() {
   let currentStep = "Getting the project name";
   let projectName;
+  let projectType;
   try {
     projectName = await promptForName();
-    if (projectName === null) { process.exitCode = 1; return; }
+    if (projectName === null) {
+      if (helpRequested) return;
+      process.exitCode = 1;
+      return;
+    }
+    currentStep = "Choosing the app type"; projectType = await promptForType();
     currentStep = "Checking required software"; checkDependencies();
     currentStep = "Checking for an existing folder"; guardExistingDir(projectName);
     currentStep = "Creating your app"; scaffoldProject(projectName);
     currentStep = "Checking your new app"; verifyScaffold(projectName);
     currentStep = "Installing the latest Expo pieces"; syncExpoDeps();
+    currentStep = "Installing authentication features"; installFeatureDependencies(projectType);
     currentStep = "Adding NativeWind TypeScript support"; writeNativeWindTypes();
     currentStep = "Updating your TypeScript settings"; patchTsconfig();
-    currentStep = "Personalizing your app"; personalizeHome(projectName);
+    currentStep = "Creating clean routes"; createCleanRoutes(projectName);
+    if (projectType === "auth") {
+      currentStep = "Creating authentication screens";
+      createAuthScreens(projectName);
+    }
     currentStep = "Enabling web support"; enableWebSupport();
-    currentStep = "Verifying the setup"; finalVerify(projectName);
-    let summary = `\n✅ ALL DONE!\n\nYour app "${projectName}" is ready.\n\nTo try it on your phone:\n  cd ${projectName}\n  npm run start\n  (then scan the QR code with Expo Go)\n\nTo try it in your browser:\n  cd ${projectName}\n  npm run web\n\nSetup finished correctly; this does not guarantee that the generated app builds or runs perfectly.`;
+    currentStep = "Verifying the setup"; finalVerify(projectName, projectType);
+    currentStep = "Starting your app"; launchProject();
+    let summary = `\n✅ ALL DONE!\n\nYour app "${projectName}" is ready.\n\nProject folder:\n  ${path.join(projectsRoot, projectName)}\n\nTo start it later:\n  cd ${path.join(projectsRoot, projectName)}\n  npm run start\n\nTo open it in your browser:\n  cd ${path.join(projectsRoot, projectName)}\n  npm run web`;
     if (warnings.length) summary += `\n\nNotes:\n${warnings.map((warning) => `⚠️  ${warning}`).join("\n")}`;
     console.log(summary);
   } catch (error) {
